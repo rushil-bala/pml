@@ -1,0 +1,96 @@
+---
+title: "Predicting Exercise Quality"
+geometry: margin = 1cm
+output: pdf_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(cache = TRUE, fig.align = "center")
+```
+
+# Synopsis
+
+It is now possible to inexpensively collect a large amount of data about personal activity using devices such as Jawbone Up, Nike FuelBand and Fitbit. These type of devices are parts of the quantified self movement – a group of enthusiasts who regularly take measurements about themselves to improve their health and find patterns in their behavior. In this project, the data from accelerometers on the belts, forearms, arms and dumbbells of 6 participants who were asked to perform barbell lifts correctly and incorrectly by 5 different ways, was analyzed. The aim was to predict the manner (classe) by which they did the exercise.
+
+# Data Analysis
+## Getting and Cleaning the Datasets
+
+```{r results = "hide", warning = FALSE, message = FALSE}
+# Set the working directory.
+# Load the required libraries.
+
+library(dplyr)
+library(caret)
+library(randomForest)
+library(e1071)
+set.seed(1234)
+
+# Download and read the datasets.
+
+if(!file.exists("pml-training.csv") & !file.exists("pml-testing.csv")){
+  gettrain <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+  gettest <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+  download.file(url = gettrain, destfile = "pml-training.csv")
+  download.file(url = gettest, destfile = "pml-testing.csv")
+  loadtrain <- read.csv("pml-training.csv", na.strings = c("NA", "", "#DIV/0!"))
+  loadtest <- read.csv("pml-testing.csv", na.strings = c("NA", "", "#DIV/0!"))
+} else{
+  loadtrain <- read.csv("pml-training.csv", na.strings = c("NA", "", "#DIV/0!"))
+  loadtest <- read.csv("pml-testing.csv", na.strings = c("NA", "", "#DIV/0!"))
+}
+
+# Remove the NA values
+
+cleantrain <- loadtrain[, colSums(is.na(loadtrain)) == 0]
+cleantest <- loadtest[, colSums(is.na(loadtest)) == 0]
+
+# Remove the non-predictors.
+
+cleantrain <- cleantrain[, -c(1:7)]
+cleantest <- cleantest[, -c(1:7)]
+```
+
+```{r warning = FALSE, message = FALSE}
+dim(cleantrain)
+dim(cleantest)
+```
+
+## Partitioning the Datasets
+
+The training dataset was partitioned as 2 datasets. The training dataset had 60% and the test dataset had 40% of the data.
+
+```{r warning = FALSE, message = FALSE}
+twoparts <- createDataPartition(cleantrain$classe, p = 0.6, list = FALSE)
+training <- cleantrain[twoparts, ]
+testing <- cleantrain[-twoparts, ]
+```
+
+## Random Forest Model
+
+The prediction was done using a customized random forest model.
+
+```{r warning = FALSE, message = FALSE}
+custommod <- train(classe ~ ., data = training,
+                   method = "rf", metric = "Accuracy",
+                   preProcess = c("center", "scale"),
+                   trControl = trainControl(method = "cv", number = 4, p = 0.6))
+custommod
+```
+
+## Predicting and Comparing the Results Using the Testing Dataset.
+
+```{r warning = FALSE, message = FALSE}
+predicttest <- predict(custommod, newdata = testing)
+testing <- mutate(testing, classe = as.factor(classe))
+levels(testing$classe)
+confusionMatrix(predicttest, testing$classe)
+custommod$finalModel
+```
+
+The accuracy is 99%. This is higher than 95%. There was sufficient confidence in the model to predict classe for the pml-testing dataset.
+
+## Validating the Model Using the pml-testing Dataset.
+
+```{r warning = FALSE, message = FALSE}
+predict(custommod, newdata = cleantest)
+```
